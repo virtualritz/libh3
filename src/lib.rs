@@ -1,3 +1,40 @@
+#![doc(
+    html_logo_url = "https://raw.githubusercontent.com/virtualritz/libh3/master/h3Logo-color.svg"
+)]
+//! H3 is a geospatial indexing system that partitions the world into hexagonal
+//! cells.
+//!
+//! The crate wraps the C-API for the H3 grid system. It includes functions for
+//! converting from latitude and longitude coordinates to the containing H3
+//! cell, finding the center of H3 cells, finding the boundary geometry of H3
+//! cells, finding neighbors of H3 cells, and more.
+//!
+//! * The H3 Core Library is written in *C*. [Bindings for many other
+//!   languages](/docs/community/bindings) are available.
+//!
+//! ## Highlights
+//!
+//! * H3 is a hierarchical [geospatial index](/docs/highlights/indexing).
+//! * H3 was developed to address the [challenges of Uber's data science
+//!   needs](/docs/highlights/aggregation).
+//! * H3 can be used to [join disparate data sets](/docs/highlights/joining).
+//! * In addition to the benefits of the hexagonal grid shape, H3 includes
+//!   features for [modeling flow](/docs/highlights/flowmodel).
+//! * H3 is well suited to apply [ML to geospatial data](/docs/highlights/ml).
+//!
+//! ## Comparisons
+//!
+//! * [S2](/docs/comparisons/s2), an open source, hierarchical, discrete, and
+//!   global grid system using square cells.
+//! * [Geohash](/docs/comparisons/geohash), a system for encoding locations
+//!   using a string of characters, creating a hierarchical, square grid system
+//!   (a quadtree).
+//! * [Hexbin](/docs/comparisons/hexbin), the process of taking coordinates and
+//!   binning them into hexagonal cells in analytics or mapping software.
+//! * [Admin Boundaries](/docs/comparisons/admin), officially designated areas
+//!   used for aggregating and analyzing data.
+//! * [Placekey](/docs/comparisons/placekey), a system for encoding points of
+//!   interest (POIs) which incorporates H3 in its POI identifier.
 use derive_more::{Deref, From, Into};
 use std::mem::MaybeUninit;
 
@@ -321,7 +358,7 @@ impl From<H3Index> for GeoBoundary {
 }
 
 impl H3Index {
-    /// Try creating `H3Index` from a [`GeoCoord`].
+    /// Try creating an index from a [`GeoCoord`] and a [`Resolution`].
     ///
     /// ```
     /// # use libh3::{GeoCoord, H3Index};
@@ -333,7 +370,7 @@ impl H3Index {
     /// let v = H3Index::try_from_geo_coord(&coords, 10)?;
     /// assert_eq!(v, 0x8a2a1072b59ffff);
     /// ```
-    pub fn try_from_geo_coord(coord: &GeoCoord, resolution: Resolution) -> Option<H3Index> {
+    pub fn try_from(coord: &GeoCoord, resolution: Resolution) -> Option<H3Index> {
         match unsafe { libh3_sys::geoToH3(&libh3_sys::GeoCoord::from(coord), resolution.0 as _) } {
             0 => None,
             x => Some(H3Index(x)),
@@ -346,13 +383,13 @@ impl H3Index {
     /// # use libh3::{GeoCoord, H3Index};
     /// let coords = GeoCoord::new(
     ///    lat: 40.689167.to_radians(),
-    ///   lon: -74.044444.to_radians(),
+    ///    lon: -74.044444.to_radians(),
     /// );
     ///
     /// let v = H3Index::try_from_geo_coord(&coords, 10)?;
     /// assert_eq!(v.resolution(), 10);
     /// ````
-    pub fn resolution(&self) -> Resolution {
+    pub fn resolution(self) -> Resolution {
         Resolution(unsafe { libh3_sys::h3GetResolution(self.0) as _ })
     }
 
@@ -366,9 +403,9 @@ impl H3Index {
     /// );
     ///
     /// let v = H3Index::try_from_geo_coord(&coords, 10)?;
-    /// assert_eq!(v.is_valid(),true);
+    /// assert_eq!(v.is_valid(), true);
     /// ```
-    pub fn is_valid(&self) -> bool {
+    pub fn is_valid(self) -> bool {
         !matches!(unsafe { libh3_sys::h3IsValid(self.0) }, 0)
     }
 
@@ -384,7 +421,7 @@ impl H3Index {
     /// let v = H3Index::try_from_geo_coord(&coords, 10)?;
     /// assert_eq!(v.is_neighbor(v), false);
     /// ```
-    pub fn is_neighbor(&self, destination: H3Index) -> bool {
+    pub fn is_neighbor(self, destination: H3Index) -> bool {
         !matches!(
             unsafe { libh3_sys::h3IndexesAreNeighbors(self.0, destination.0) },
             0
@@ -393,10 +430,10 @@ impl H3Index {
 
     /// Determine if the index is a pentagon.
     /// ```
-    /// #use libh3::H3Index;
+    /// # use libh3::H3Index;
     /// assert_eq!(H3Index::from(0x8a2a1072b59ffff).is_pentagon(), false);
     /// ```
-    pub fn is_pentagon(&self) -> bool {
+    pub fn is_pentagon(self) -> bool {
         !matches!(unsafe { libh3_sys::h3IsPentagon(self.0) }, 0)
     }
 
@@ -406,7 +443,7 @@ impl H3Index {
     /// # use libh3::H3Index;
     /// assert_eq!(H3Index::from(0x8a2a1072b59ffff).base_cell(), 21);
     /// ```
-    pub fn base_cell(&self) -> u32 {
+    pub fn base_cell(self) -> u32 {
         (unsafe { libh3_sys::h3GetBaseCell(self.0) }) as _
     }
 
@@ -437,7 +474,7 @@ impl H3Index {
     /// let r = H3Index::from(0x8a2a1072b59ffff).k_ring(1);
     /// assert_eq!(r, expected_kring);
     /// ```
-    pub fn k_ring(&self, radius: u32) -> Vec<H3Index> {
+    pub fn k_ring(self, radius: u32) -> Vec<H3Index> {
         assert!(radius <= i32::MAX as _);
         unsafe {
             let max = libh3_sys::maxKringSize(radius as _) as _;
@@ -479,7 +516,7 @@ impl H3Index {
     /// let r = H3Index::from(0x8a2a1072b59ffff).k_ring_distances(1);
     /// assert_eq!(r, expected_k_ring_distances);
     /// ```
-    pub fn k_ring_distances(&self, radius: u32) -> Vec<(H3Index, u32)> {
+    pub fn k_ring_distances(self, radius: u32) -> Vec<(H3Index, u32)> {
         assert!(radius <= i32::MAX as _);
         unsafe {
             let max = libh3_sys::maxKringSize(radius as _) as _;
@@ -503,9 +540,9 @@ impl H3Index {
         }
     }
 
-    pub fn hex_range(&self, k: u32) -> (bool, Vec<H3Index>) {
+    pub fn hex_range(self, k: u32) -> (bool, Vec<H3Index>) {
         unsafe {
-            let max = libh3_sys::maxKringSize(k) as _;
+            let max = libh3_sys::maxKringSize(k as _) as _;
             let mut r = Vec::<H3Index>::with_capacity(max);
             let distortion = libh3_sys::hexRange(self.0, k as _, r.as_mut_ptr() as _);
             r.set_len(max);
@@ -514,9 +551,9 @@ impl H3Index {
         }
     }
 
-    pub fn hex_range_distances(&self, k: u32) -> (bool, Vec<(H3Index, u32)>) {
+    pub fn hex_range_distances(self, k: u32) -> (bool, Vec<(H3Index, u32)>) {
         unsafe {
-            let max = libh3_sys::maxKringSize(k) as _;
+            let max = libh3_sys::maxKringSize(k as _) as _;
             let mut indexes = Vec::<H3Index>::with_capacity(max);
             let mut distances = Vec::<u32>::with_capacity(max);
             let distortion = libh3_sys::hexRangeDistances(
@@ -539,45 +576,29 @@ impl H3Index {
         }
     }
 
-    /// Get the grid distance between two hex indexes. This function may fail
-    /// to find the distance between two indexes if they are very far apart or
-    /// on opposite sides of a pentagon.
+    /// Get the grid distance between two hex indexes.
+    ///
+    /// This function may fail to find the distance between two indexes if they
+    /// are very far apart or on opposite sides of a pentagon.
+    ///
     /// # Arguments
     ///
-    /// * `origin` - The starting H3 index
-    /// * `end` - The ending H3 index
+    /// * `other` - The other index.
     ///
     /// ```
-    /// use libh3::h3_distance;
-    ///
     /// assert_eq!(
     ///     H3Index::from(0x8a2a1072b4a7fff).dinstance(H3Index::from(0x8a2a1072b58ffff)),
     ///     Some(1)
     /// );
     /// ```
-    pub fn distance(&self, end: H3Index) -> Option<u32> {
-        let r = unsafe { libh3_sys::h3Distance(self.0, end.0) };
+    pub fn distance(self, other: H3Index) -> Option<u32> {
+        let r = unsafe { libh3_sys::h3Distance(self.0, other.0) };
 
         if r < 0 {
             None
         } else {
             Some(r as _)
         }
-    }
-
-    /// Returns the size of the array needed by h3ToChildren for these inputs.
-    ///
-    /// # Arguments
-    ///
-    /// * `h` - The index of the parent resolution.
-    /// * `resolution` - The resolution of the desired level.
-    ///
-    /// ```
-    /// use libh3::max_h3_to_children_size;
-    /// assert_eq!(max_h3_to_children_size(0x852a1073fffffff, 6), 7);
-    /// ```
-    fn max_to_children_size(&self, resolution: Resolution) -> u32 {
-        (unsafe { libh3_sys::maxH3ToChildrenSize(self.0, resolution.0 as _) }) as _
     }
 
     /// Returns the parent (coarser) index containing h3.
@@ -591,7 +612,7 @@ impl H3Index {
     /// use libh3::h3_to_parent;
     /// assert_eq!(h3_to_parent(0x8a2a1072b4a7fff, 5), 0x852a1073fffffff);
     /// ```
-    pub fn parent(&self, resolution: Resolution) -> H3Index {
+    pub fn parent(self, resolution: Resolution) -> H3Index {
         H3Index(unsafe { libh3_sys::h3ToParent(self.0, resolution.0 as _) })
     }
 
@@ -618,11 +639,10 @@ impl H3Index {
     ///     ]
     /// );
     /// ```
-    pub fn children(&self, resolution: Resolution) -> Vec<H3Index> {
-        let max = self.max_to_children_size(resolution) as _;
-        let mut result = Vec::<H3Index>::with_capacity(max);
-
+    pub fn children(self, resolution: Resolution) -> Vec<H3Index> {
         unsafe {
+            let max = libh3_sys::maxH3ToChildrenSize(self.0, resolution.0 as _) as _;
+            let mut result = Vec::<H3Index>::with_capacity(max);
             libh3_sys::h3ToChildren(self.0, resolution.0 as _, result.as_mut_ptr() as _);
             result.set_len(max);
             result
